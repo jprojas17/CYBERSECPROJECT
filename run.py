@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Secure Password Manager - 1-Click Automated Runner
 
 import sys
@@ -48,11 +47,11 @@ def initialize_database():
 
 def run_application():
     # Launch the Flask web application
-    print("=" * 60)
+    print("🧑‍💻" * 20)
     print("   SECURE PASSWORD MANAGER (B207 CYBER SECURITY)")
     print("   Starting server at: http://127.0.0.1:5000")
     print("   Press CTRL+C to terminate the application.")
-    print("=" * 60)
+    print("🧑‍💻" * 20)
     
     try:
         from app import app
