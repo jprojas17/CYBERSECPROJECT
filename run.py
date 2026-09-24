@@ -47,11 +47,11 @@ def initialize_database():
 
 def run_application():
     # Launch the Flask web application
-    print("🧑‍💻" * 20)
+    print("=" * 60)
     print("   SECURE PASSWORD MANAGER (B207 CYBER SECURITY)")
     print("   Starting server at: http://127.0.0.1:5000")
     print("   Press CTRL+C to terminate the application.")
-    print("🧑‍💻" * 20)
+    print("=" * 60)
     
     try:
         from app import app

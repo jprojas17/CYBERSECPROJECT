@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Logs | JPCYPHER{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <div class="dashboard-title-area">
+        <h1>Security Audit Trail</h1>
+        <p class="subtitle">Chronological record of authentication, decryption, and credential events.</p>
+    </div>
+    
+    <div class="dashboard-actions">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">&larr; Back to Vault</a>
+    </div>
+</div>
+
+<div class="table-container-card">
+    {% if logs %}
+        <table class="audit-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Event</th>
+                    <th>Description</th>
+                    <th>IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                    <tr>
+                        <td class="cell-mono">{{ log.timestamp }}</td>
+                        <td>
+                            <span class="event-badge">
+                                {{ log.event_type }}
+                            </span>
+                        </td>
+                        <td>{{ log.description }}</td>
+                        <td class="cell-mono">{{ log.ip_address or '127.0.0.1' }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            <p>No audit events recorded yet.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
