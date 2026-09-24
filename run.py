@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""
-Secure Password Manager - 1-Click Automated Runner
-Compliant with B207 Reassessment Brief: Simplifies execution and environment setup in one script.
-"""
+# Secure Password Manager - 1-Click Automated Runner
 
 import sys
 import subprocess
@@ -14,7 +11,7 @@ REQUIRED_PACKAGES = [
 ]
 
 def check_and_install_dependencies():
-    """Verify required third-party libraries and install them if missing."""
+    # Verify required third-party libraries and install them if missing
     print("[*] Checking Python environment and dependencies...")
     missing_packages = []
     
@@ -38,7 +35,7 @@ def check_and_install_dependencies():
         print("[+] All required dependencies are satisfied.")
 
 def initialize_database():
-    """Initialize SQLite database if database module is present."""
+    # Initialize SQLite database if database module is present
     try:
         from database import init_db
         print("[*] Initializing SQLite database schema...")
@@ -50,7 +47,7 @@ def initialize_database():
         print(f"[-] Database initialization notice: {e}")
 
 def run_application():
-    """Launch the Flask web application."""
+    # Launch the Flask web application
     print("=" * 60)
     print("   SECURE PASSWORD MANAGER (B207 CYBER SECURITY)")
     print("   Starting server at: http://127.0.0.1:5000")
