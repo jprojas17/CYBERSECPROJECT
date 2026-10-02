@@ -1,42 +1,72 @@
-# Unit tests for cryptographic engine
-import unittest
-import crypto_utils
+# Unit Tests: Cryptographic Engine and CSPRNG Generator
+import pytest
+import string
+import crypto_utils as crypto
 
-class TestCryptoUtils(unittest.TestCase):
-    def test_salt_generation(self):
-        salt1 = crypto_utils.generate_salt()
-        salt2 = crypto_utils.generate_salt()
-        self.assertEqual(len(salt1), 16)
-        self.assertEqual(len(salt2), 16)
-        self.assertNotEqual(salt1, salt2)
+# Test salt generation randomness and size
+def test_generate_salt():
+    salt1 = crypto.generate_salt()
+    salt2 = crypto.generate_salt()
+    assert len(salt1) == 16
+    assert len(salt2) == 16
+    assert salt1 != salt2
 
-    def test_key_derivation_deterministic(self):
-        salt = crypto_utils.generate_salt()
-        key1 = crypto_utils.derive_key("MyMasterPass!123", salt)
-        key2 = crypto_utils.derive_key("MyMasterPass!123", salt)
-        self.assertEqual(key1, key2)
+# Test key derivation produces valid Fernet key
+def test_derive_key():
+    salt = crypto.generate_salt()
+    key1 = crypto.derive_key("MasterPassword123!", salt)
+    key2 = crypto.derive_key("MasterPassword123!", salt)
+    key_other_salt = crypto.derive_key("MasterPassword123!", crypto.generate_salt())
+    
+    assert key1 == key2
+    assert key1 != key_other_salt
+    assert len(key1) == 44
 
-    def test_master_password_verification(self):
-        salt = crypto_utils.generate_salt()
-        pwd_hash = crypto_utils.hash_master_password("SecureMaster99$", salt)
-        self.assertTrue(crypto_utils.verify_master_password("SecureMaster99$", salt, pwd_hash))
-        self.assertFalse(crypto_utils.verify_master_password("WrongPassword99$", salt, pwd_hash))
+# Test encryption and decryption roundtrip
+def test_encrypt_decrypt_roundtrip():
+    salt = crypto.generate_salt()
+    key = crypto.derive_key("MyMasterSecretPass!", salt)
+    secret_text = "SecretBankPassword#999"
+    
+    ciphertext = crypto.encrypt_credential(secret_text, key)
+    assert ciphertext != secret_text
+    
+    decrypted = crypto.decrypt_credential(ciphertext, key)
+    assert decrypted == secret_text
 
-    def test_encryption_decryption_cycle(self):
-        salt = crypto_utils.generate_salt()
-        key = crypto_utils.derive_key("ValidMasterPass1!", salt)
-        plaintext = "SuperSecretBankPassword#2026"
-        token = crypto_utils.encrypt_credential(plaintext, key)
-        self.assertNotEqual(token, plaintext)
-        decrypted = crypto_utils.decrypt_credential(token, key)
-        self.assertEqual(decrypted, plaintext)
+# Test ciphertext tampering detection (HMAC validation)
+def test_decryption_tampering():
+    salt = crypto.generate_salt()
+    key = crypto.derive_key("MyMasterSecretPass!", salt)
+    ciphertext = crypto.encrypt_credential("SecretData", key)
+    
+    # Tamper with the ciphertext token
+    tampered = ciphertext[:-4] + "AAAA"
+    with pytest.raises(ValueError):
+        crypto.decrypt_credential(tampered, key)
 
-    def test_password_generation_and_entropy(self):
-        pwd = crypto_utils.generate_secure_password(length=20)
-        self.assertEqual(len(pwd), 20)
-        analysis = crypto_utils.evaluate_password_strength(pwd)
-        self.assertGreater(analysis["entropy"], 80)
-        self.assertIn(analysis["rating"], ["Strong", "Very Strong"])
+# Test master password hashing and verification
+def test_master_password_verification():
+    salt = crypto.generate_salt()
+    pw = "SuperSecureMasterKey2026!"
+    hashed = crypto.hash_master_password(pw, salt)
+    
+    assert crypto.verify_master_password(pw, salt, hashed) is True
+    assert crypto.verify_master_password("WrongPassword!", salt, hashed) is False
 
-if __name__ == "__main__":
-    unittest.main()
+# Test CSPRNG password generator
+def test_password_generator():
+    pw = crypto.generate_secure_password(length=20, use_upper=True, use_lower=True, use_digits=True, use_symbols=True)
+    assert len(pw) == 20
+    assert any(c in string.ascii_uppercase for c in pw)
+    assert any(c in string.ascii_lowercase for c in pw)
+    assert any(c in string.digits for c in pw)
+    assert any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in pw)
+
+# Test entropy calculation
+def test_entropy_calculation():
+    weak_entropy = crypto.calculate_entropy("123456")
+    strong_entropy = crypto.calculate_entropy("Kj9#mP2$vL8!zQ4@")
+    assert strong_entropy > weak_entropy
+    assert weak_entropy < 30
+    assert strong_entropy > 80

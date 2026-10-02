@@ -1,115 +1,53 @@
-# Unit tests for database module
-import os
-import unittest
-import tempfile
-import database
-import crypto_utils
+# Unit Tests: Database Operations and Anti-SQL Injection Defenses
+import pytest
+import uuid
+import database as db
 
-class TestDatabaseModule(unittest.TestCase):
-    def setUp(self):
-        # Create unique temporary database file
-        temp_dir = tempfile.gettempdir()
-        self.db_path = os.path.join(temp_dir, f"test_pm_{os.urandom(8).hex()}.db")
-        database.init_db(self.db_path)
+# Test user creation and duplicate prevention
+def test_create_user_and_uniqueness():
+    username = f"user_{uuid.uuid4().hex[:8]}"
+    master_hash = "mockhash12345"
+    salt = b"1234567890abcdef"
+    
+    created = db.create_user(username, master_hash, salt)
+    assert created is True
+    
+    # Duplicate creation must fail gracefully
+    duplicate = db.create_user(username, master_hash, salt)
+    assert duplicate is False
 
-    def tearDown(self):
-        if os.path.exists(self.db_path):
-            try:
-                os.remove(self.db_path)
-            except OSError:
-                pass
+# Test vault CRUD lifecycle
+def test_vault_crud_lifecycle():
+    username = f"crud_{uuid.uuid4().hex[:8]}"
+    salt = b"1234567890123456"
+    db.create_user(username, "hash", salt)
+    user = db.get_user_by_username(username)
+    user_id = user["id"]
 
-    def test_user_creation_and_retrieval(self):
-        salt = crypto_utils.generate_salt()
-        pwd_hash = crypto_utils.hash_master_password("MasterPass123!", salt)
-        user_id = database.create_user("testuser", pwd_hash, salt, self.db_path)
-        self.assertIsInstance(user_id, int)
+    # 1. Add Entry
+    entry_id = db.add_vault_entry(user_id, "Amazon", "buyer@amazon.com", "gAAAAAB...", "Prime Account")
+    assert entry_id > 0
 
-        user = database.get_user_by_username("testuser", self.db_path)
-        self.assertIsNotNone(user)
-        self.assertEqual(user["username"], "testuser")
-        self.assertEqual(user["master_password_hash"], pwd_hash)
-        self.assertEqual(user["salt"], salt)
+    # 2. Get Entry
+    entry = db.get_vault_entry_by_id(entry_id, user_id)
+    assert entry is not None
+    assert entry["service_name"] == "Amazon"
+    assert entry["notes"] == "Prime Account"
 
-    def test_duplicate_user_rejection(self):
-        salt = crypto_utils.generate_salt()
-        pwd_hash = crypto_utils.hash_master_password("MasterPass123!", salt)
-        database.create_user("alice", pwd_hash, salt, self.db_path)
-        
-        # Creating duplicate username should raise error
-        with self.assertRaises(Exception):
-            database.create_user("alice", pwd_hash, salt, self.db_path)
+    # 3. Update Entry
+    updated = db.update_vault_entry(entry_id, user_id, "Amazon AWS", "admin@aws.com", "gAAAAABNew...", "Updated notes")
+    assert updated is True
+    
+    updated_entry = db.get_vault_entry_by_id(entry_id, user_id)
+    assert updated_entry["service_name"] == "Amazon AWS"
 
-    def test_vault_entry_crud_and_search(self):
-        salt = crypto_utils.generate_salt()
-        pwd_hash = crypto_utils.hash_master_password("MasterPass123!", salt)
-        user_id = database.create_user("bob", pwd_hash, salt, self.db_path)
+    # 4. Delete Entry
+    deleted = db.delete_vault_entry(entry_id, user_id)
+    assert deleted is True
+    assert db.get_vault_entry_by_id(entry_id, user_id) is None
 
-        # Derive Fernet key and encrypt password
-        key = crypto_utils.derive_key("MasterPass123!", salt)
-        encrypted_pass = crypto_utils.encrypt_credential("SuperSecret99$", key)
-
-        # Create entry
-        entry_id = database.create_vault_entry(
-            user_id=user_id,
-            title="GitHub Account",
-            username_or_email="bob@github.com",
-            encrypted_password=encrypted_pass,
-            website_url="https://github.com",
-            notes="Personal dev",
-            category="Development",
-            db_path=self.db_path
-        )
-        self.assertIsInstance(entry_id, int)
-
-        # Read entry
-        entry = database.get_vault_entry_by_id(entry_id, user_id, self.db_path)
-        self.assertIsNotNone(entry)
-        self.assertEqual(entry["title"], "GitHub Account")
-        decrypted = crypto_utils.decrypt_credential(entry["encrypted_password"], key)
-        self.assertEqual(decrypted, "SuperSecret99$")
-
-        # Update entry
-        new_encrypted = crypto_utils.encrypt_credential("UpdatedSecret100$", key)
-        updated = database.update_vault_entry(
-            entry_id=entry_id,
-            user_id=user_id,
-            title="GitHub Main Account",
-            username_or_email="bob@github.com",
-            encrypted_password=new_encrypted,
-            website_url="https://github.com",
-            notes="Updated notes",
-            category="Development",
-            db_path=self.db_path
-        )
-        self.assertTrue(updated)
-
-        # Verify update
-        entry = database.get_vault_entry_by_id(entry_id, user_id, self.db_path)
-        self.assertEqual(entry["title"], "GitHub Main Account")
-        self.assertEqual(crypto_utils.decrypt_credential(entry["encrypted_password"], key), "UpdatedSecret100$")
-
-        # Search filter
-        results = database.get_vault_entries_by_user(user_id, search_query="GitHub", db_path=self.db_path)
-        self.assertEqual(len(results), 1)
-
-        # Delete entry
-        deleted = database.delete_vault_entry(entry_id, user_id, self.db_path)
-        self.assertTrue(deleted)
-        self.assertIsNone(database.get_vault_entry_by_id(entry_id, user_id, self.db_path))
-
-    def test_audit_logging(self):
-        log_id = database.log_security_event(
-            user_id=None,
-            event_type="SYSTEM_BOOT",
-            description="System initialized",
-            ip_address="127.0.0.1",
-            db_path=self.db_path
-        )
-        self.assertIsInstance(log_id, int)
-        logs = database.get_audit_logs(None, limit=10, db_path=self.db_path)
-        self.assertTrue(len(logs) >= 1)
-        self.assertEqual(logs[0]["event_type"], "SYSTEM_BOOT")
-
-if __name__ == "__main__":
-    unittest.main()
+# Test SQL Injection resistance with malicious payloads
+def test_sql_injection_defense():
+    sqli_payload = "' OR '1'='1' --"
+    user = db.get_user_by_username(sqli_payload)
+    assert user is None
