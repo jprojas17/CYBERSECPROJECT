@@ -1,16 +1,229 @@
 {% extends "base.html" %}
 
-{% block title %}Vault Dashboard{% endblock %}
+{% block title %}Dashboard - Vault{% endblock %}
 
 {% block content %}
+<!-- Top Action Bar -->
 <div class="dashboard-header">
     <div>
-        <h1 class="page-title">🔐 Encrypted Vault</h1>
-        <p class="text-muted">Master Key Derived Session Active &bull; Zero-Knowledge AES-256 Storage</p>
+        <h1 class="page-title">Credentials Vault</h1>
+        <p class="subtitle">Zero-Knowledge AES-256 Storage &bull; {{ entries|length }} stored credentials</p>
+    </div>
+    <div class="header-actions">
+        <button id="btn-open-generator" class="btn btn-secondary">⚡ Generator</button>
+        <button id="btn-open-add-modal" class="btn btn-primary">+ New Credential</button>
     </div>
 </div>
 
-<div class="card vault-container">
-    <p class="text-muted">Vault entries will be displayed here.</p>
+<!-- Search & Filter Bar -->
+<div class="search-container">
+    <input type="text" id="vault-search" class="form-input search-input" placeholder="Search credentials by service, email or notes..." autocomplete="off">
 </div>
+
+<!-- Credentials Grid / List -->
+<div class="vault-wrapper">
+    {% if entries %}
+        <div class="vault-grid" id="vault-grid">
+            {% for entry in entries %}
+                <div class="vault-card" data-service="{{ entry['service_name']|lower }}" data-username="{{ entry['username_email']|lower }}" data-notes="{{ entry['notes']|lower }}">
+                    <div class="vault-card-header">
+                        <div class="service-meta">
+                            <span class="service-badge">{{ entry['service_name'][:2]|upper }}</span>
+                            <h3 class="service-title">{{ entry['service_name'] }}</h3>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn-icon btn-edit" title="Edit Entry" 
+                                    data-id="{{ entry['id'] }}" 
+                                    data-service="{{ entry['service_name'] }}" 
+                                    data-username="{{ entry['username_email'] }}" 
+                                    data-notes="{{ entry['notes'] }}">
+                                ✏️
+                            </button>
+                            <form action="{{ url_for('delete_entry', entry_id=entry['id']) }}" method="POST" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this credential?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn-icon btn-delete" title="Delete Entry">🗑️</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="vault-card-body">
+                        <div class="field-group">
+                            <span class="field-label">Account / Email</span>
+                            <span class="field-value">{{ entry['username_email'] }}</span>
+                        </div>
+
+                        <div class="field-group">
+                            <span class="field-label">Password</span>
+                            <div class="password-box">
+                                <span class="password-masked" id="pw-mask-{{ entry['id'] }}">••••••••••••</span>
+                                <span class="password-plain hidden" id="pw-plain-{{ entry['id'] }}"></span>
+                                <div class="password-actions">
+                                    <button class="btn btn-sm btn-outline btn-reveal" data-id="{{ entry['id'] }}" id="btn-reveal-{{ entry['id'] }}">Reveal</button>
+                                    <button class="btn btn-sm btn-secondary btn-copy hidden" data-id="{{ entry['id'] }}" id="btn-copy-{{ entry['id'] }}">Copy</button>
+                                </div>
+                            </div>
+                            <div class="timer-badge hidden" id="timer-{{ entry['id'] }}">Auto-hiding in 15s</div>
+                        </div>
+
+                        {% if entry['notes'] %}
+                            <div class="field-group">
+                                <span class="field-label">Notes</span>
+                                <p class="field-notes">{{ entry['notes'] }}</p>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="vault-card-footer">
+                        <span>Updated {{ entry['updated_at'] }}</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🛡️</div>
+            <h3>No credentials yet</h3>
+            <p class="subtitle mt-1">Start storing your credentials securely with Zero-Knowledge encryption.</p>
+            <button id="btn-empty-add" class="btn btn-primary mt-3">+ Add your first credential</button>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Modal: Add New Credential -->
+<div id="add-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Add New Credential</h3>
+            <button class="btn-close" id="btn-close-add">&times;</button>
+        </div>
+        <form action="{{ url_for('add_entry') }}" method="POST" class="form-body">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            
+            <div class="form-group">
+                <label class="form-label" for="add_service">Service / Website Name</label>
+                <input type="text" id="add_service" name="service_name" class="form-input" required placeholder="e.g. GitHub, Google, ProtonMail">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="add_username">Account / Email</label>
+                <input type="text" id="add_username" name="username_email" class="form-input" required placeholder="m@example.com">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="add_password">Password</label>
+                <div class="input-with-action">
+                    <input type="password" id="add_password" name="password" class="form-input" required placeholder="••••••••••••">
+                    <button type="button" class="btn btn-secondary" id="btn-gen-into-add">Generate</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="add_notes">Notes (Optional)</label>
+                <textarea id="add_notes" name="notes" class="form-input form-textarea" rows="2" placeholder="Recovery codes, PIN, etc."></textarea>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" id="btn-cancel-add">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Credential</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Edit Credential -->
+<div id="edit-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Edit Credential</h3>
+            <button class="btn-close" id="btn-close-edit">&times;</button>
+        </div>
+        <form id="edit-form" method="POST" class="form-body">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            
+            <div class="form-group">
+                <label class="form-label" for="edit_service">Service Name</label>
+                <input type="text" id="edit_service" name="service_name" class="form-input" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="edit_username">Account / Email</label>
+                <input type="text" id="edit_username" name="username_email" class="form-input" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="edit_password">New Password</label>
+                <input type="password" id="edit_password" name="password" class="form-input" placeholder="Leave empty to keep current password">
+                <span class="form-helper">Leave empty if you don't want to change the password.</span>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="edit_notes">Notes</label>
+                <textarea id="edit_notes" name="notes" class="form-input form-textarea" rows="2"></textarea>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" id="btn-cancel-edit">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: CSPRNG Password Generator -->
+<div id="generator-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>Password Generator</h3>
+            <button class="btn-close" id="btn-close-generator">&times;</button>
+        </div>
+
+        <div class="generator-body">
+            <div class="gen-output-box">
+                <input type="text" id="gen-password-display" class="gen-password-text" readonly>
+                <button id="btn-copy-generated" class="btn btn-sm btn-primary">Copy</button>
+            </div>
+
+            <div class="strength-meter-container">
+                <div class="strength-bar-bg">
+                    <div id="strength-bar" class="strength-bar-fill"></div>
+                </div>
+                <div class="strength-labels">
+                    <span id="strength-rating">Strength: Strong</span>
+                    <span id="strength-entropy">Entropy: 95 bits</span>
+                </div>
+            </div>
+
+            <div class="gen-controls">
+                <div class="form-group">
+                    <div class="range-header">
+                        <label for="gen-length">Length: <span id="gen-length-val">18</span></label>
+                    </div>
+                    <input type="range" id="gen-length" min="8" max="48" value="18" class="form-range">
+                </div>
+
+                <div class="checkbox-grid">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="gen-upper" checked> Uppercase (A-Z)
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="gen-lower" checked> Lowercase (a-z)
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="gen-digits" checked> Numbers (0-9)
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="gen-symbols" checked> Symbols (!@#$%)
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" id="btn-regenerate" class="btn btn-outline">🔄 Refresh</button>
+                <button type="button" id="btn-use-password" class="btn btn-primary">Apply to Add Form</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast" class="toast hidden">Copied to clipboard!</div>
 {% endblock %}

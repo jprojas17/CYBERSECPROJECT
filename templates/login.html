@@ -6,8 +6,8 @@
 <div class="auth-wrapper">
     <div class="card auth-card">
         <div class="card-header">
-            <h2 class="card-title">🔐 Master Key Access</h2>
-            <p class="card-subtitle">Authenticate with your Zero-Knowledge credentials</p>
+            <h2 class="card-title">Sign in to your vault</h2>
+            <p class="card-subtitle">Enter your master credentials to unlock encrypted data</p>
         </div>
 
         <form action="{{ url_for('login') }}" method="POST" class="form-body">
@@ -15,21 +15,22 @@
 
             <div class="form-group">
                 <label for="username" class="form-label">Username</label>
-                <input type="text" id="username" name="username" class="form-input" required autofocus placeholder="Enter your username" autocomplete="username">
+                <input type="text" id="username" name="username" class="form-input" required autofocus placeholder="m@example.com or username" autocomplete="username">
             </div>
 
             <div class="form-group">
                 <label for="master_password" class="form-label">Master Password</label>
-                <input type="password" id="master_password" name="master_password" class="form-input" required placeholder="••••••••••••••••" autocomplete="current-password">
+                <input type="password" id="master_password" name="master_password" class="form-input" required placeholder="••••••••••••" autocomplete="current-password">
+                <span class="form-helper">Zero-Knowledge derivation: We never store your password in plaintext.</span>
             </div>
 
             <button type="submit" class="btn btn-primary btn-block" {% if locked %}disabled{% endif %}>
-                Unlock Vault
+                Sign In
             </button>
         </form>
 
         <div class="auth-footer">
-            <p>New user? <a href="{{ url_for('register') }}" class="link">Create a secure vault</a></p>
+            <p>Don't have an account? <a href="{{ url_for('register') }}" class="link">Create an account</a></p>
         </div>
     </div>
 </div>

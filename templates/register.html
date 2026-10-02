@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Create Vault{% endblock %}
+{% block title %}Create an account{% endblock %}
 
 {% block content %}
 <div class="auth-wrapper">
     <div class="card auth-card">
         <div class="card-header">
-            <h2 class="card-title">🛡️ Initialize New Vault</h2>
-            <p class="card-subtitle">Set your Master Password. Keep it safe — it cannot be recovered.</p>
+            <h2 class="card-title">Create an account</h2>
+            <p class="card-subtitle">Enter your information below to create your secure vault account</p>
         </div>
 
         <form action="{{ url_for('register') }}" method="POST" class="form-body">
@@ -15,26 +15,29 @@
 
             <div class="form-group">
                 <label for="username" class="form-label">Username</label>
-                <input type="text" id="username" name="username" class="form-input" required placeholder="Choose a unique username" autocomplete="username">
+                <input type="text" id="username" name="username" class="form-input" required placeholder="john_doe" autocomplete="username" autofocus>
+                <span class="form-helper">This will identify your encrypted vault.</span>
             </div>
 
             <div class="form-group">
-                <label for="master_password" class="form-label">Master Password (min. 10 chars)</label>
-                <input type="password" id="master_password" name="master_password" class="form-input" required placeholder="••••••••••••••••" autocomplete="new-password">
+                <label for="master_password" class="form-label">Master Password</label>
+                <input type="password" id="master_password" name="master_password" class="form-input" required placeholder="••••••••••••" autocomplete="new-password">
+                <span class="form-helper">Must be at least 10 characters long. Used to derive your AES key.</span>
             </div>
 
             <div class="form-group">
-                <label for="confirm_password" class="form-label">Confirm Master Password</label>
-                <input type="password" id="confirm_password" name="confirm_password" class="form-input" required placeholder="••••••••••••••••" autocomplete="new-password">
+                <label for="confirm_password" class="form-label">Confirm Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-input" required placeholder="••••••••••••" autocomplete="new-password">
+                <span class="form-helper">Please confirm your master password.</span>
             </div>
 
             <button type="submit" class="btn btn-primary btn-block">
-                Generate & Encrypt Vault
+                Create Account
             </button>
         </form>
 
         <div class="auth-footer">
-            <p>Already have an account? <a href="{{ url_for('login') }}" class="link">Sign in</a></p>
+            <p>Already have an account? <a href="{{ url_for('login') }}" class="link">Sign In</a></p>
         </div>
     </div>
 </div>

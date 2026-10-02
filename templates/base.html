@@ -1,15 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>{% block title %}JPCYPHER{% endblock %}</title>
-    <!-- Inter Font -->
+    <title>{% block title %}Secure Password Vault{% endblock %} | JPTech B207</title>
+    <!-- Google Fonts Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Main Style Sheet -->
+    <!-- Shadcn Zinc Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% block extra_head %}{% endblock %}
 </head>
@@ -17,19 +16,29 @@
     <!-- Top Navigation Bar -->
     <header>
         <nav class="navbar">
-            <a href="{{ url_for('dashboard') if session.get('user_id') else url_for('login') }}" class="nav-brand">
-                <span class="brand-icon">⚿</span>
-                <span>JPCYPHER</span>
-            </a>
+            <div class="nav-left">
+                <a href="{{ url_for('dashboard') if session.get('user_id') else url_for('login') }}" class="nav-brand">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span>JPTech</span>
+                </a>
+                
+                <div class="nav-links">
+                    {% if session.get('user_id') %}
+                        <a href="{{ url_for('dashboard') }}" class="nav-link">Vault</a>
+                    {% endif %}
+                </div>
+            </div>
             
-            <div class="nav-links">
+            <div class="nav-right">
                 {% if session.get('user_id') %}
                     <span class="nav-user">{{ session.get('username') }}</span>
-                    <a href="{{ url_for('dashboard') }}" class="nav-link">Vault</a>
-                    <a href="{{ url_for('logout') }}" class="nav-link nav-logout">Logout</a>
+                    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline">Log out</a>
                 {% else %}
-                    <a href="{{ url_for('login') }}" class="nav-link">Login</a>
-                    <a href="{{ url_for('register') }}" class="nav-link">Register</a>
+                    <a href="{{ url_for('login') }}" class="nav-link">Sign In</a>
+                    <a href="{{ url_for('register') }}" class="btn btn-sm btn-primary">Create Account</a>
                 {% endif %}
             </div>
         </nav>
@@ -55,7 +64,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-        <p>JPCYPHER &bull; Zero-Knowledge AES-256 Encrypted Password Manager</p>
+        <p>JPTech &bull; B207 Cyber Security &bull; Zero-Knowledge AES-256 Vault</p>
     </footer>
 
     <!-- Core JavaScript -->

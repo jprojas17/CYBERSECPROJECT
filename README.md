@@ -1,75 +1,81 @@
-# JPCYPHER — Secure Password Manager
+# JPTech Vault - Secure Password Manager
 
-A secure web-based password manager built with Python, Flask, and SQLite. It protects your credentials using strong encryption (AES-256) and secure password hashing (PBKDF2).
-
----
+A secure password manager built with Python, Flask, SQLite, and authenticated AES-128 / Fernet encryption. Designed for the B207 Cyber Security coursework at Gisma University of Applied Sciences.
 
 ## Features
 
-- **User Accounts**: Create an account with a single Master Password.
-- **Strong Encryption (AES-256)**: All stored passwords are encrypted before being saved to the database.
-- **Zero-Knowledge Design**: The server never stores your master password in plain text.
-- **Password Generator**: Create strong, random passwords with custom lengths and character types.
-- **Password Strength Analyzer**: See real-time feedback on password strength and entropy.
-- **Clean Dark Interface**: Simple, responsive dashboard to manage, search, and copy passwords.
-- **Audit Logs**: Track account logins and password access for better security.
+- **Authenticated Symmetric Encryption:** Credentials encrypted at rest using Fernet (AES-128-CBC + HMAC-SHA256).
+- **Zero-Knowledge Key Derivation:** Master passwords hashed and keys derived with PBKDF2-HMAC-SHA256 (100,000 iterations) with 16-byte random salts.
+- **Defensive Web Security:**
+  - Strict parameterized SQLite queries (Anti-SQLi).
+  - Cryptographic per-session CSRF token validation.
+  - Brute-force rate limiter (180s lockout after 5 consecutive failed attempts).
+  - Hardened HTTP security headers (`CSP`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`).
+- **Minimalist Web Dashboard:**
+  - Modern dark zinc UI.
+  - On-demand decryption with 15-second automatic masking countdown.
+  - One-click copy to clipboard with toast notification.
+  - CSPRNG password generator with real-time entropy calculation.
+- **1-Click Execution:** Automated setup checking and installing dependencies automatically.
 
----
+## Quick Start
 
-## How It Works
+### 1. Prerequisites
+- Python 3.10 or higher.
 
-```mermaid
-graph TD
-    A[User enters Master Password] --> B[Generate Random Salt]
-    B --> C[Derive Key with PBKDF2-SHA256]
-    C --> D[Save Hash for Login Check]
-    C --> E[Use Key to Encrypt & Decrypt Passwords with AES-256]
-```
-
-1. **Registration**: When you create an account, your master password is combined with a random salt and hashed 100,000 times using PBKDF2-HMAC-SHA256.
-2. **Login**: When you log in, your master password is verified using constant-time comparison to prevent timing attacks.
-3. **Vault Storage**: When you add a password, it is encrypted using AES-256 (Fernet) using your derived key and saved to the SQLite database.
-4. **Decryption**: Passwords remain masked in the browser. Clicking the reveal or copy icon decrypts the password securely in memory.
-
----
-
-## Quick Start (1-Click Run)
-
-### Requirements
-- Python 3.10 or newer
-
-### On Windows
-Double-click `run.bat` or run:
-```powershell
+### 2. Run the Application
+**Windows:**
+Double click `run.bat` or run:
+```cmd
 python run.py
 ```
 
-### On Linux / macOS
+**Linux / macOS:**
 ```bash
 chmod +x run.sh
 ./run.sh
 ```
 
-The script will automatically install any missing dependencies (`Flask`, `cryptography`), create the database (`password_manager.db`), and start the application on `http://127.0.0.1:5000`.
+The application will start at `http://127.0.0.1:5000`.
 
----
-
-## Running Tests
-
-To verify that all cryptographic functions, database operations, and web routes are working correctly:
-
-```powershell
-python -m unittest discover tests
+### 3. Running Automated Tests
+Run the test suite with `pytest`:
+```bash
+pytest tests/ -v
 ```
 
----
+All 14 unit and security tests will execute and verify cryptographic integrity, database defenses, rate limiting, and CSRF protection.
 
 ## Project Structure
 
-- `app.py`: Web server and routes (login, register, vault management, APIs).
-- `crypto_utils.py`: Cryptographic functions (PBKDF2 key derivation, AES-256 encryption, password generator).
-- `database.py`: SQLite database schema, queries, and audit logging.
-- `run.py`: Automated 1-click startup script.
-- `templates/`: HTML templates for the user interface.
-- `src/`: CSS stylesheets and client-side JavaScript.
-- `tests/`: Automated unit and integration test suite.
+```text
+├── app.py                # Flask application & routing controller
+├── crypto_utils.py       # PBKDF2 derivation, Fernet encryption, CSPRNG generator
+├── database.py           # SQLite database layer with parameterized queries
+├── security.py           # Rate limiting, CSRF protection, and security headers
+├── run.py                # 1-Click automated execution script
+├── run.bat               # Windows batch launcher
+├── run.sh                # Linux/macOS launcher script
+├── conftest.py           # Pytest test configuration & isolation
+├── src/
+│   ├── css/style.css     # Shadcn-inspired dark styling
+│   └── js/app.js         # Frontend vault interactions, timer & generator
+├── templates/
+│   ├── base.html         # Base layout & navigation
+│   ├── login.html        # Sign in view
+│   ├── register.html     # Account registration view
+│   └── dashboard.html    # Vault credentials dashboard & modals
+├── tests/
+│   ├── test_crypto.py    # Cryptography unit tests
+│   ├── test_database.py  # Database & SQLi tests
+│   └── test_security.py  # Rate limiting & CSRF tests
+└── README.md             # Project documentation
+```
+
+## Author
+**Juan Pablo Rojas**  
+B207 Cyber Security  
+Gisma University of Applied Sciences
+
+## License
+Academic coursework project created by Juan Pablo Rojas for Gisma University of Applied Sciences. Distributed under the MIT License for academic evaluation purposes.

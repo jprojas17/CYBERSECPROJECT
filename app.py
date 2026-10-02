@@ -1,7 +1,6 @@
-# Module: Flask Application Backend & Authentication Controller
 import os
 import secrets
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, abort
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 
 import database as db
 import crypto_utils as crypto
@@ -18,31 +17,26 @@ from security import (
 app = Flask(__name__, static_folder='src', template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
-# Session cookie security settings
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
     SESSION_COOKIE_SECURE=False
 )
 
-# Apply security headers on every response
 @app.after_request
 def after_request_security(response):
     return apply_security_headers(response)
 
-# Inject CSRF token into Jinja2 templates context
 @app.context_processor
 def inject_csrf_token():
     return dict(csrf_token=get_or_create_csrf_token())
 
-# Root route: redirect to dashboard or login
 @app.route('/')
 def index():
     if 'user_id' in session:
         return redirect(url_for('dashboard'))
     return redirect(url_for('login'))
 
-# User Registration endpoint
 @app.route('/register', methods=['GET', 'POST'])
 @require_csrf
 def register():
@@ -66,24 +60,21 @@ def register():
             flash('Master passwords do not match.', 'danger')
             return render_template('register.html')
 
-        # Check if username is taken
         if db.get_user_by_username(username):
-            flash('Username already exists. Please select another.', 'danger')
+            flash('Username already exists. Please choose another.', 'danger')
             return render_template('register.html')
 
-        # Generate salt & compute master hash
         salt = crypto.generate_salt()
         master_hash = crypto.hash_master_password(master_password, salt)
 
         if db.create_user(username, master_hash, salt):
-            flash('Registration successful! Please login with your master password.', 'success')
+            flash('Account created successfully! Please sign in.', 'success')
             return redirect(url_for('login'))
         else:
-            flash('An error occurred during account creation. Try again.', 'danger')
+            flash('Error creating account. Please try again.', 'danger')
 
     return render_template('register.html')
 
-# User Login endpoint with rate limiting
 @app.route('/login', methods=['GET', 'POST'])
 @require_csrf
 def login():
@@ -106,21 +97,18 @@ def login():
             salt = user['salt']
             expected_hash = user['master_hash']
 
-            # Constant-time verification
             if crypto.verify_master_password(master_password, salt, expected_hash):
                 reset_failed_attempts(client_ip)
                 session.clear()
                 session['user_id'] = user['id']
                 session['username'] = user['username']
                 
-                # Derive session encryption key in memory for vault operations
                 session_key = crypto.derive_key(master_password, salt)
                 session['vault_key'] = session_key.decode('utf-8')
                 
                 flash(f'Welcome back, {user["username"]}!', 'success')
                 return redirect(url_for('dashboard'))
 
-        # Record failed attempt upon bad credentials
         record_failed_attempt(client_ip)
         is_locked_now, remaining_now = is_ip_locked(client_ip)
         if is_locked_now:
@@ -131,14 +119,12 @@ def login():
 
     return render_template('login.html', locked=False)
 
-# User Logout endpoint
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('You have been securely logged out.', 'success')
+    flash('You have been logged out.', 'success')
     return redirect(url_for('login'))
 
-# Vault Dashboard: list all credentials
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -146,7 +132,6 @@ def dashboard():
     entries = db.get_vault_entries_by_user(user_id)
     return render_template('dashboard.html', entries=entries)
 
-# Add new credential entry to vault
 @app.route('/vault/add', methods=['POST'])
 @login_required
 @require_csrf
@@ -155,7 +140,7 @@ def add_entry():
     vault_key = session.get('vault_key')
 
     if not vault_key:
-        flash('Session expired or key unavailable. Please login again.', 'danger')
+        flash('Session expired. Please sign in again.', 'danger')
         return redirect(url_for('login'))
 
     service_name = request.form.get('service_name', '').strip()
@@ -164,17 +149,15 @@ def add_entry():
     notes = request.form.get('notes', '').strip()
 
     if not service_name or not username_email or not plaintext_password:
-        flash('Service, Account/Email and Password are required fields.', 'danger')
+        flash('Service, Account/Email and Password are required.', 'danger')
         return redirect(url_for('dashboard'))
 
-    # Encrypt password using authenticated Fernet cipher
     encrypted_pw = crypto.encrypt_credential(plaintext_password, vault_key.encode('utf-8'))
     db.add_vault_entry(user_id, service_name, username_email, encrypted_pw, notes)
 
-    flash(f'Credential for "{service_name}" securely encrypted and saved.', 'success')
+    flash(f'Credential for "{service_name}" saved securely.', 'success')
     return redirect(url_for('dashboard'))
 
-# Edit existing credential entry
 @app.route('/vault/edit/<int:entry_id>', methods=['POST'])
 @login_required
 @require_csrf
@@ -196,7 +179,6 @@ def edit_entry(entry_id):
         flash('Service and Account/Email cannot be empty.', 'danger')
         return redirect(url_for('dashboard'))
 
-    # If new password is provided, re-encrypt it; otherwise keep existing ciphertext
     if plaintext_password:
         encrypted_pw = crypto.encrypt_credential(plaintext_password, vault_key.encode('utf-8'))
     else:
@@ -206,19 +188,17 @@ def edit_entry(entry_id):
     flash(f'Credential for "{service_name}" updated successfully.', 'success')
     return redirect(url_for('dashboard'))
 
-# Delete credential entry from vault
 @app.route('/vault/delete/<int:entry_id>', methods=['POST'])
 @login_required
 @require_csrf
 def delete_entry(entry_id):
     user_id = session['user_id']
     if db.delete_vault_entry(entry_id, user_id):
-        flash('Credential entry successfully removed from vault.', 'success')
+        flash('Credential removed from vault.', 'success')
     else:
         flash('Failed to delete entry or unauthorized.', 'danger')
     return redirect(url_for('dashboard'))
 
-# Decrypt credential on-demand endpoint
 @app.route('/vault/decrypt/<int:entry_id>', methods=['POST'])
 @login_required
 @require_csrf
@@ -231,7 +211,7 @@ def decrypt_entry(entry_id):
 
     entry = db.get_vault_entry_by_id(entry_id, user_id)
     if not entry:
-        return jsonify({'success': False, 'error': 'Entry not found or access denied.'}), 404
+        return jsonify({'success': False, 'error': 'Entry not found.'}), 404
 
     try:
         decrypted_password = crypto.decrypt_credential(entry['encrypted_password'], vault_key.encode('utf-8'))
@@ -239,7 +219,6 @@ def decrypt_entry(entry_id):
     except Exception as e:
         return jsonify({'success': False, 'error': f'Decryption failed: {str(e)}'}), 400
 
-# Password generator API endpoint with entropy score
 @app.route('/api/generate-password', methods=['POST'])
 @login_required
 @require_csrf

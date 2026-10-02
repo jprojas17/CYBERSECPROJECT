@@ -1,5 +1,3 @@
-# Module: Cryptographic Engine for Secure Password Manager
-import os
 import math
 import string
 import secrets
@@ -11,16 +9,13 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.fernet import Fernet, InvalidToken
 
-# Cryptographic parameters
 PBKDF2_ITERATIONS = 100_000
 SALT_SIZE_BYTES = 16
 KEY_LENGTH_BYTES = 32
 
-# Generate a secure random salt (16 bytes)
 def generate_salt(size: int = SALT_SIZE_BYTES) -> bytes:
     return secrets.token_bytes(size)
 
-# Derive a 256-bit Fernet key using PBKDF2-HMAC-SHA256
 def derive_key(master_password: str, salt: bytes, iterations: int = PBKDF2_ITERATIONS) -> bytes:
     if not isinstance(master_password, str) or not master_password:
         raise ValueError("Master password must be a non-empty string.")
@@ -36,7 +31,6 @@ def derive_key(master_password: str, salt: bytes, iterations: int = PBKDF2_ITERA
     raw_key = kdf.derive(master_password.encode('utf-8'))
     return base64.urlsafe_b64encode(raw_key)
 
-# Hash master password with salt for authentication
 def hash_master_password(master_password: str, salt: bytes) -> str:
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -47,7 +41,6 @@ def hash_master_password(master_password: str, salt: bytes) -> str:
     derived = kdf.derive(master_password.encode('utf-8'))
     return derived.hex()
 
-# Verify master password using constant-time comparison
 def verify_master_password(provided_password: str, salt: bytes, expected_hash_hex: str) -> bool:
     try:
         calculated_hash_hex = hash_master_password(provided_password, salt)
@@ -55,14 +48,12 @@ def verify_master_password(provided_password: str, salt: bytes, expected_hash_he
     except Exception:
         return False
 
-# Encrypt credential using Fernet (AES-128-CBC + HMAC)
 def encrypt_credential(plaintext: str, fernet_key: bytes) -> str:
     if not isinstance(plaintext, str):
         raise TypeError("Plaintext credential must be a string.")
     f = Fernet(fernet_key)
     return f.encrypt(plaintext.encode('utf-8')).decode('utf-8')
 
-# Decrypt credential using Fernet
 def decrypt_credential(ciphertext_token: str, fernet_key: bytes) -> str:
     try:
         f = Fernet(fernet_key)
@@ -72,7 +63,6 @@ def decrypt_credential(ciphertext_token: str, fernet_key: bytes) -> str:
     except Exception as e:
         raise ValueError(f"Decryption error: {str(e)}")
 
-# Generate secure random password
 def generate_secure_password(
     length: int = 16,
     use_upper: bool = True,
@@ -108,14 +98,12 @@ def generate_secure_password(
     random_chars = [secrets.choice(combined_pool) for _ in range(remaining_length)]
     password_list = guaranteed_chars + random_chars
     
-    # Shuffle characters using CSPRNG
     for i in range(len(password_list) - 1, 0, -1):
         j = secrets.randbelow(i + 1)
         password_list[i], password_list[j] = password_list[j], password_list[i]
 
     return "".join(password_list)
 
-# Calculate entropy in bits: E = L * log2(R)
 def calculate_entropy(password: str) -> float:
     if not password:
         return 0.0
@@ -136,7 +124,6 @@ def calculate_entropy(password: str) -> float:
     entropy = len(password) * math.log2(pool_size)
     return round(entropy, 2)
 
-# Evaluate password strength
 def evaluate_password_strength(password: str) -> Dict[str, Any]:
     entropy = calculate_entropy(password)
     length = len(password)
