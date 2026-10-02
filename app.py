@@ -1,7 +1,7 @@
 # Module: Flask Application Backend & Authentication Controller
 import os
 import secrets
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, abort
 
 import database as db
 import crypto_utils as crypto
@@ -22,7 +22,7 @@ app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    SESSION_COOKIE_SECURE=False  # Set True in production with HTTPS
+    SESSION_COOKIE_SECURE=False
 )
 
 # Apply security headers on every response
@@ -138,11 +138,133 @@ def logout():
     flash('You have been securely logged out.', 'success')
     return redirect(url_for('login'))
 
-# Placeholder dashboard route (CRUD endpoints in Commit 5)
+# Vault Dashboard: list all credentials
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html', entries=[])
+    user_id = session['user_id']
+    entries = db.get_vault_entries_by_user(user_id)
+    return render_template('dashboard.html', entries=entries)
+
+# Add new credential entry to vault
+@app.route('/vault/add', methods=['POST'])
+@login_required
+@require_csrf
+def add_entry():
+    user_id = session['user_id']
+    vault_key = session.get('vault_key')
+
+    if not vault_key:
+        flash('Session expired or key unavailable. Please login again.', 'danger')
+        return redirect(url_for('login'))
+
+    service_name = request.form.get('service_name', '').strip()
+    username_email = request.form.get('username_email', '').strip()
+    plaintext_password = request.form.get('password', '')
+    notes = request.form.get('notes', '').strip()
+
+    if not service_name or not username_email or not plaintext_password:
+        flash('Service, Account/Email and Password are required fields.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # Encrypt password using authenticated Fernet cipher
+    encrypted_pw = crypto.encrypt_credential(plaintext_password, vault_key.encode('utf-8'))
+    db.add_vault_entry(user_id, service_name, username_email, encrypted_pw, notes)
+
+    flash(f'Credential for "{service_name}" securely encrypted and saved.', 'success')
+    return redirect(url_for('dashboard'))
+
+# Edit existing credential entry
+@app.route('/vault/edit/<int:entry_id>', methods=['POST'])
+@login_required
+@require_csrf
+def edit_entry(entry_id):
+    user_id = session['user_id']
+    vault_key = session.get('vault_key')
+
+    existing_entry = db.get_vault_entry_by_id(entry_id, user_id)
+    if not existing_entry:
+        flash('Entry not found or unauthorized.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    service_name = request.form.get('service_name', '').strip()
+    username_email = request.form.get('username_email', '').strip()
+    plaintext_password = request.form.get('password', '')
+    notes = request.form.get('notes', '').strip()
+
+    if not service_name or not username_email:
+        flash('Service and Account/Email cannot be empty.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # If new password is provided, re-encrypt it; otherwise keep existing ciphertext
+    if plaintext_password:
+        encrypted_pw = crypto.encrypt_credential(plaintext_password, vault_key.encode('utf-8'))
+    else:
+        encrypted_pw = existing_entry['encrypted_password']
+
+    db.update_vault_entry(entry_id, user_id, service_name, username_email, encrypted_pw, notes)
+    flash(f'Credential for "{service_name}" updated successfully.', 'success')
+    return redirect(url_for('dashboard'))
+
+# Delete credential entry from vault
+@app.route('/vault/delete/<int:entry_id>', methods=['POST'])
+@login_required
+@require_csrf
+def delete_entry(entry_id):
+    user_id = session['user_id']
+    if db.delete_vault_entry(entry_id, user_id):
+        flash('Credential entry successfully removed from vault.', 'success')
+    else:
+        flash('Failed to delete entry or unauthorized.', 'danger')
+    return redirect(url_for('dashboard'))
+
+# Decrypt credential on-demand endpoint
+@app.route('/vault/decrypt/<int:entry_id>', methods=['POST'])
+@login_required
+@require_csrf
+def decrypt_entry(entry_id):
+    user_id = session['user_id']
+    vault_key = session.get('vault_key')
+
+    if not vault_key:
+        return jsonify({'success': False, 'error': 'Encryption key unavailable.'}), 401
+
+    entry = db.get_vault_entry_by_id(entry_id, user_id)
+    if not entry:
+        return jsonify({'success': False, 'error': 'Entry not found or access denied.'}), 404
+
+    try:
+        decrypted_password = crypto.decrypt_credential(entry['encrypted_password'], vault_key.encode('utf-8'))
+        return jsonify({'success': True, 'password': decrypted_password})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Decryption failed: {str(e)}'}), 400
+
+# Password generator API endpoint with entropy score
+@app.route('/api/generate-password', methods=['POST'])
+@login_required
+@require_csrf
+def api_generate_password():
+    data = request.get_json() or {}
+    length = int(data.get('length', 16))
+    use_upper = bool(data.get('upper', True))
+    use_lower = bool(data.get('lower', True))
+    use_digits = bool(data.get('digits', True))
+    use_symbols = bool(data.get('symbols', True))
+
+    password = crypto.generate_secure_password(
+        length=length,
+        use_upper=use_upper,
+        use_lower=use_lower,
+        use_digits=use_digits,
+        use_symbols=use_symbols
+    )
+    analysis = crypto.evaluate_password_strength(password)
+
+    return jsonify({
+        'success': True,
+        'password': password,
+        'analysis': analysis
+    })
 
 if __name__ == '__main__':
     db.init_db()
